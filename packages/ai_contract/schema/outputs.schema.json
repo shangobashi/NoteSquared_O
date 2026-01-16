@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LessonOutputs",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["student_recap", "practice_plan", "parent_email"],
+  "properties": {
+    "student_recap": { "type": "string", "minLength": 50 },
+    "practice_plan": { "type": "string", "minLength": 100 },
+    "parent_email": { "type": "string", "minLength": 50 }
+  }
+}

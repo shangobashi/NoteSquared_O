@@ -1,0 +1,323 @@
+Gemini Master Docs
+==================
+
+Master Context: Note By Note (MVP)
+
+1. Project Mission
+
+Note By Note is an AI-powered automated documentation tool for music teachers.
+Core Loop: Record Lesson (Mobile) -> Transcribe (Whisper) -> Extract Musical Data (LLM) -> Generate 3 Outputs (Recap, Plan, Email) -> Teacher Edits & Sends.
+
+2. The Rules of Engagement (For AI Agents)
+
+Strict Adherence: Do not deviate from the 01_DATA_CONTRACTS.md schema. If a column isn't there, do not create it.
+
+Pattern Matching: Use the coding style defined in 03_SCAFFOLD_PATTERNS.md.
+
+Regression Safety: All LLM prompts must pass the validation checks in 02_INTELLIGENCE_LAYER.md.
+
+Monorepo Structure:
+
+/apps/mobile (React Native/Expo)
+
+/backend (Python FastAPI)
+
+/infra (Supabase config)
+
+3. Product Requirements (MVP)
+
+3.1 Personas & Pricing
+
+Solo Teacher ($49/mo): Single user, needs speed.
+
+Studio Owner ($99/mo): Multi-user management (future-proofing required in DB schema).
+
+3.2 User Flows
+
+Auth: Login via Supabase Auth.
+
+Session: Select Student -> Tap "Record" -> Tap "Stop".
+
+Processing: App uploads audio -> Backend processes (Whisper + GPT-4o).
+
+Review: Teacher sees 3 text blocks (Recap, Plan, Email). Teacher edits text.
+
+Action: Teacher clicks "Copy to Clipboard" or "Send".
+
+3.3 Tech Stack Constraints
+
+Frontend: React Native (Expo) + Tamagui (UI Kit).
+
+Backend: Python FastAPI (deployed on Fly.io or similar).
+
+Database/Auth: Supabase (PostgreSQL).
+
+AI: OpenAI Whisper (Audio) + GPT-4o (Reasoning - JSON Mode strict).
+
+3.4 Integration Stubs (Future Proofing)
+
+Payments: Stripe Customer ID field required in User table.
+
+Email: SendGrid/Resend API key placeholder required in backend env.
+
+
+Data Contracts & API Specification
+
+CRITICAL INSTRUCTION: This file is the Source of Truth. AI Agents must strictly implement this Schema and API surface.
+
+1. Database Schema (Prisma / PostgreSQL)
+
+// This schema handles the "Solo" vs "Studio" logic and the "3 Output" requirement.
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  full_name       String?
+  studio_name     String?  // Nullable for Solo teachers
+  plan_tier       PlanTier @default(SOLO) 
+  stripe_cust_id  String?  // For future payments
+  created_at      DateTime @default(now())
+  
+  students        Student[]
+  lessons         Lesson[]
+}
+
+enum PlanTier {
+  SOLO
+  STUDIO
+}
+
+model Student {
+  id              String   @id @default(uuid())
+  teacher_id      String
+  teacher         User     @relation(fields: [teacher_id], references: [id])
+  full_name       String
+  instrument      String   // e.g., "Piano", "Violin"
+  parent_email    String?  // Optional for adult students
+  created_at      DateTime @default(now())
+  
+  lessons         Lesson[]
+}
+
+model Lesson {
+  id              String       @id @default(uuid())
+  student_id      String
+  student         Student      @relation(fields: [student_id], references: [id])
+  teacher_id      String
+  teacher         User         @relation(fields: [teacher_id], references: [id])
+  
+  // Audio Handling
+  audio_url       String       // Supabase Storage path
+  duration_sec    Int
+  
+  // State Machine
+  status          LessonStatus @default(UPLOADING)
+  
+  // The Core AI Outputs (Stored as text for easy editing)
+  transcript_text String?      @db.Text
+  student_recap   String?      @db.Text
+  practice_plan   String?      @db.Text // Markdown list
+  parent_email    String?      @db.Text
+  
+  created_at      DateTime     @default(now())
+}
+
+enum LessonStatus {
+  UPLOADING
+  PROCESSING   // Whisper + LLM running
+  READY_REVIEW // Teacher can edit
+  COMPLETED    // Sent/Archived
+  FAILED
+}
+
+
+2. API Contract (FastAPI)
+
+POST /lessons/process
+
+Input (Multipart): file (audio/m4a), student_id (uuid), teacher_id (uuid).
+
+Output (JSON):
+
+{
+  "lesson_id": "uuid",
+  "status": "PROCESSING"
+}
+
+
+GET /lessons/{lesson_id}
+
+Output (JSON):
+
+{
+  "id": "uuid",
+  "status": "READY_REVIEW",
+  "outputs": {
+    "student_recap": "Great work on the C Major scale...",
+    "practice_plan": "- Mon: Scale 10m\n- Tue: Arpeggios...",
+    "parent_email": "Dear Mrs. Smith..."
+  }
+}
+
+
+PATCH /lessons/{lesson_id}
+
+Purpose: Save teacher edits.
+
+Input (JSON): {"student_recap": "...", "practice_plan": "...", "parent_email": "..."}
+
+
+Intelligence Layer: Prompts & Quality Assurance
+
+CRITICAL INSTRUCTION: The LLM is not a creative writer; it is a data extractor. Use strictly structured outputs (JSON Mode) to prevent UI breakage.
+
+1. The Extraction Prompt (System Prompt)
+
+Role: You are an expert music teacher assistant.
+Task: Analyze the provided lesson transcript.
+Constraint: Output valid JSON only. Do not include markdown formatting like ```json.
+
+JSON Schema Enforced:
+
+{
+  "student_recap": "String. Tone: Encouraging but specific. Max 100 words.",
+  "practice_plan": "String. Markdown bullet points. Broken down by days (Mon-Sun) or generic 'Day 1'. Specific assignments only.",
+  "parent_email": "String. Professional summary. Max 150 words. Focus on progress."
+}
+
+
+Context Variables:
+
+Student Name: {student_name}
+
+Instrument: {instrument}
+
+2. Golden Fixture (Regression Testing)
+
+Input Transcript (Fixture):
+"Okay, Sarah. Let's look at that G Major scale again. You're rushing the turn. Play it at 60bpm this week. Also, for the recital piece, memorize measures 4 through 8. Good job keeping your wrists up today."
+
+Expected Output (Truth):
+
+{
+  "student_recap": "Great job keeping your wrists up today, Sarah! We need to focus on controlling the tempo in the G Major scale.",
+  "practice_plan": "- **G Major Scale**: Play at 60bpm. Focus on the turn. (10 mins)\n- **Recital Piece**: Memorize measures 4-8. (15 mins)",
+  "parent_email": "Hi, Sarah had a good lesson. Her posture is improving (wrists were great!). This week she needs to practice her G Major scale at a slower tempo (60bpm) and memorize a specific section of her recital song."
+}
+
+
+3. Testing Strategy
+
+Unit Test: Mock OpenAI response with the Expected Output above. Ensure Backend parses it correctly.
+
+Integration Test: Upload a 10-second dummy audio file -> Verify Status moves from PROCESSING to READY_REVIEW.
+
+
+Scaffold Patterns: Implementation Guide
+
+CRITICAL INSTRUCTION: Use these exact code patterns. Do not re-invent the wheel.
+
+1. Backend Pattern (FastAPI + Async AI)
+
+File: backend/main.py
+
+from fastapi import FastAPI, UploadFile, BackgroundTasks
+from pydantic import BaseModel
+import openai
+import json
+
+app = FastAPI()
+
+class LessonDraft(BaseModel):
+    student_recap: str
+    practice_plan: str
+    parent_email: str
+
+async def process_ai_job(lesson_id: str, audio_path: str):
+    # 1. Transcribe (Whisper)
+    transcript = client.audio.transcriptions.create(
+        model="whisper-1", file=open(audio_path, "rb")
+    )
+    
+    # 2. Extract (GPT-4o JSON Mode)
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": transcript.text}
+        ]
+    )
+    
+    # 3. Save to DB (Pseudo-code)
+    data = json.loads(response.choices[0].message.content)
+    db.update_lesson(lesson_id, status="READY_REVIEW", **data)
+
+@app.post("/lessons/process")
+async def upload_lesson(file: UploadFile, background_tasks: BackgroundTasks):
+    # Pattern: Immediate ID return, Async processing
+    lesson_id = db.create_lesson(status="PROCESSING")
+    save_path = f"tmp/{lesson_id}.m4a"
+    
+    with open(save_path, "wb") as f:
+        f.write(file.file.read())
+        
+    background_tasks.add_task(process_ai_job, lesson_id, save_path)
+    return {"lesson_id": lesson_id, "status": "PROCESSING"}
+
+
+2. Frontend Pattern (Expo Audio Recording)
+
+File: mobile/components/Recorder.tsx
+
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
+
+export const Recorder = () => {
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+
+  const startRecording = async () => {
+    // Pattern: Request permissions first
+    await Audio.requestPermissionsAsync();
+    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+    
+    const { recording } = await Audio.Recording.createAsync(
+       Audio.RecordingOptionsPresets.HIGH_QUALITY
+    );
+    setRecording(recording);
+  };
+
+  const stopAndUpload = async () => {
+    await recording.stopAndUnloadAsync();
+    const uri = recording.getURI();
+    
+    // Pattern: Upload via FormData
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      type: 'audio/m4a',
+      name: 'upload.m4a',
+    } as any);
+
+    await fetch(`${API_URL}/lessons/process`, {
+      method: 'POST',
+      body: formData
+    });
+  };
+  
+  // UI Implementation...
+};
+
+
+
+This Document System is ready for ingestion.
+
+Context provides the business logic and constraints.
+
+Contracts provides the rigid skeleton to prevent errors.
+
+Intelligence provides the brain and the testing harness.
+
+Scaffold provides the hands-on code to start the build immediately.
+
+Execute the build in the order: Contracts -> Scaffold -> Intelligence -> Context.

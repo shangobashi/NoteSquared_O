@@ -1,0 +1,14 @@
+{
+  "student": "Unknown",
+  "instrument": "Piano",
+  "highlights": ["C major scale with even tone"],
+  "focus_areas": ["Do not rush the left hand in the Bach piece"],
+  "assignments": [
+    { "task": "Hands separate practice on Bach passage", "target": "10 minutes daily at metronome 60", "confidence": 0.8 },
+    { "task": "G major arpeggio", "target": "Two octaves daily", "confidence": 0.7 }
+  ],
+  "evidence": [
+    { "claim": "Practice hands separate at tempo 60", "quote": "10 minutes hands separate, slow tempo with metronome at 60" },
+    { "claim": "Practice G major arpeggio two octaves", "quote": "practice the G major arpeggio, two octaves" }
+  ]
+}

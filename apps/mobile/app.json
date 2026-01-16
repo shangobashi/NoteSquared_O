@@ -1,0 +1,8 @@
+{
+  "expo": {
+    "name": "Note^2",
+    "slug": "note2",
+    "scheme": "note2",
+    "platforms": ["ios", "android", "web"]
+  }
+}

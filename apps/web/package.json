@@ -1,0 +1,26 @@
+{
+  "name": "note2-web",
+  "private": true,
+  "version": "0.1.0",
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start --web",
+    "build": "expo export --platform web",
+    "vercel-build": "expo export --platform web",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~3.2.3",
+    "gsap": "^3.12.5",
+    "@supabase/supabase-js": "^2.45.0",
+    "@types/react": "~18.2.79",
+    "expo": "^51.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-native": "0.74.5",
+    "react-native-web": "~0.19.10"
+  },
+  "devDependencies": {
+    "typescript": "~5.3.3"
+  }
+}
